@@ -13,6 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://url-explainer.com"),
   title: "URL Explainer",
   description: "Break down any URL into its parts and share annotated explanations",
 };
