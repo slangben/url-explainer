@@ -1,19 +1,16 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { UrlSegment } from "../lib/types";
 import { parseUrl } from "../lib/url-parser";
 import { encodeBreakdown } from "../lib/encoding";
+import { getSegmentColor, sortSegments } from "../lib/segment-colors";
 
-const TYPE_COLORS: Record<string, string> = {
-  protocol: "bg-blue-100 border-blue-300 text-blue-800 dark:bg-blue-900/40 dark:border-blue-700 dark:text-blue-200",
-  host: "bg-green-100 border-green-300 text-green-800 dark:bg-green-900/40 dark:border-green-700 dark:text-green-200",
-  port: "bg-yellow-100 border-yellow-300 text-yellow-800 dark:bg-yellow-900/40 dark:border-yellow-700 dark:text-yellow-200",
-  pathname: "bg-purple-100 border-purple-300 text-purple-800 dark:bg-purple-900/40 dark:border-purple-700 dark:text-purple-200",
-  "search-param": "bg-orange-100 border-orange-300 text-orange-800 dark:bg-orange-900/40 dark:border-orange-700 dark:text-orange-200",
-  hash: "bg-pink-100 border-pink-300 text-pink-800 dark:bg-pink-900/40 dark:border-pink-700 dark:text-pink-200",
-  custom: "bg-zinc-100 border-zinc-300 text-zinc-800 dark:bg-zinc-800 dark:border-zinc-600 dark:text-zinc-200",
-};
+// Allow unreserved chars, percent-encoded sequences, and common URL sub-delimiters.
+// Strips spaces and anything outside this set.
+function sanitizeSegmentValue(value: string): string {
+  return value.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/g, "");
+}
 
 export default function UrlEditor() {
   const [protocol, setProtocol] = useState("https://");
@@ -22,6 +19,19 @@ export default function UrlEditor() {
   const [parsed, setParsed] = useState(false);
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!showAddMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) {
+        setShowAddMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showAddMenu]);
 
   const handleParse = useCallback(() => {
     const input = rawUrl.trim();
@@ -36,7 +46,7 @@ export default function UrlEditor() {
     const proto = segs.find((s) => s.type === "protocol")?.value || "https";
     const host = segs.find((s) => s.type === "host")?.value || "";
     const port = segs.find((s) => s.type === "port")?.value || "";
-    const pathname = segs.find((s) => s.type === "pathname")?.value || "";
+    const pathParts = segs.filter((s) => s.type === "pathname").map((s) => s.value).filter(Boolean);
     const params = segs
       .filter((s) => s.type === "search-param")
       .map((s) => s.value)
@@ -46,15 +56,16 @@ export default function UrlEditor() {
     setProtocol(`${proto}://`);
     let url = `${host}`;
     if (port) url += `:${port}`;
-    url += pathname || "/";
+    url += pathParts.length ? `/${pathParts.join("/")}` : "/";
     if (params) url += `?${params}`;
     if (hash) url += `#${hash}`;
     return url;
   };
 
   const updateSegment = (id: string, field: keyof UrlSegment, value: string) => {
+    const sanitized = field === "value" ? sanitizeSegmentValue(value) : value;
     setSegments((prev) => {
-      const updated = prev.map((s) => (s.id === id ? { ...s, [field]: value } : s));
+      const updated = prev.map((s) => (s.id === id ? { ...s, [field]: sanitized } : s));
       if (field === "value") {
         setRawUrl(rebuildUrl(updated));
       }
@@ -72,18 +83,18 @@ export default function UrlEditor() {
     setShareUrl(null);
   };
 
-  const addSegment = () => {
-    setSegments((prev) => [
-      ...prev,
-      {
-        id: `seg-${Date.now()}`,
-        type: "custom",
-        label: "Custom",
-        value: "",
-        description: "",
-      },
-    ]);
+  const addSegment = (type: "pathname" | "search-param" | "hash") => {
+    const presets = {
+      pathname: { label: "Path", value: "" },
+      "search-param": { label: "Param", value: "key=value" },
+      hash: { label: "Fragment", value: "" },
+    };
+    const newSeg = { id: `seg-${Date.now()}`, type, description: "", ...presets[type] };
+    const updated = [...segments, newSeg];
+    setSegments(updated);
+    setRawUrl(rebuildUrl(updated));
     setShareUrl(null);
+    setShowAddMenu(false);
   };
 
   const handleShare = () => {
@@ -144,22 +155,47 @@ export default function UrlEditor() {
       {parsed && segments.length > 0 && (
         <>
           <div className="flex flex-col gap-3">
-            {segments.map((seg) => (
+            {sortSegments(segments).filter((seg) => seg.type !== "protocol" && seg.type !== "host").map((seg) => (
               <div
                 key={seg.id}
-                className={`rounded-lg border p-4 flex flex-col gap-2 ${TYPE_COLORS[seg.type] || TYPE_COLORS.custom}`}
+                className={`rounded-lg border p-4 flex flex-col gap-2 ${getSegmentColor(seg, segments)}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <span className="text-xs font-semibold uppercase tracking-wider opacity-70 shrink-0">
-                      {seg.label}
+                      {seg.type === "search-param" ? "Param" : seg.label}
                     </span>
-                    <input
-                      type="text"
-                      value={seg.value}
-                      onChange={(e) => updateSegment(seg.id, "value", e.target.value)}
-                      className="text-sm font-mono truncate min-w-0 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none dark:bg-black/20"
-                    />
+                    {seg.type === "search-param" ? (() => {
+                      const eqIdx = seg.value.indexOf("=");
+                      const paramKey = eqIdx === -1 ? seg.value : seg.value.slice(0, eqIdx);
+                      const paramVal = eqIdx === -1 ? "" : seg.value.slice(eqIdx + 1);
+                      return (
+                        <>
+                          <input
+                            type="text"
+                            value={paramKey}
+                            onChange={(e) => updateSegment(seg.id, "value", `${e.target.value}=${paramVal}`)}
+                            placeholder="name"
+                            className="text-sm font-mono w-28 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
+                          />
+                          <span className="text-xs opacity-50 shrink-0">=</span>
+                          <input
+                            type="text"
+                            value={paramVal}
+                            onChange={(e) => updateSegment(seg.id, "value", `${paramKey}=${e.target.value}`)}
+                            placeholder="value"
+                            className="text-sm font-mono min-w-0 flex-1 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
+                          />
+                        </>
+                      );
+                    })() : (
+                      <input
+                        type="text"
+                        value={seg.value}
+                        onChange={(e) => updateSegment(seg.id, "value", e.target.value)}
+                        className="text-sm font-mono truncate min-w-0 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none dark:bg-black/20"
+                      />
+                    )}
                   </div>
                   <button
                     onClick={() => removeSegment(seg.id)}
@@ -183,12 +219,27 @@ export default function UrlEditor() {
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={addSegment}
-              className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-            >
-              + Add segment
-            </button>
+            <div ref={addMenuRef} className="relative">
+              <button
+                onClick={() => setShowAddMenu((v) => !v)}
+                className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                + Add segment
+              </button>
+              {showAddMenu && (
+                <div className="absolute left-0 top-full mt-1 z-10 flex flex-col rounded-lg border border-zinc-200 bg-white shadow-md dark:border-zinc-700 dark:bg-zinc-900">
+                  {(["pathname", "search-param", "hash"] as const).map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => addSegment(type)}
+                      className="px-4 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800 first:rounded-t-lg last:rounded-b-lg"
+                    >
+                      {type === "pathname" ? "Path" : type === "search-param" ? "Query param" : "Fragment"}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button
               onClick={handleShare}
               className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"

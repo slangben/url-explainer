@@ -57,12 +57,13 @@ export function parseUrl(raw: string): UrlSegment[] {
     });
   }
 
-  if (url.pathname && url.pathname !== "/") {
+  const pathParts = url.pathname.split("/").filter(Boolean);
+  for (const part of pathParts) {
     segments.push({
       id: uid(),
       type: "pathname",
       label: "Path",
-      value: url.pathname,
+      value: part,
       description: DEFAULT_DESCRIPTIONS.pathname,
     });
   }
