@@ -26,7 +26,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         {
           url: `/s/${data}/og`,
           width: 1200,
-          height: 630,
         },
       ],
     },

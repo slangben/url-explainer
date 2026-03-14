@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
-import { decodeBreakdown } from "../../../lib/encoding";
-import { getSegmentColorHex, sortSegments } from "../../../lib/segment-colors";
-import { colorizeUrl } from "../../../lib/colorize-url";
-import { UrlSegment } from "../../../lib/types";
+import { decodeBreakdown } from "@/app/lib/encoding";
+import { getSegmentColorHex, sortSegments } from "@/app/lib/segment-colors";
+import { colorizeUrl } from "@/app/lib/colorize-url";
+import { UrlSegment } from "@/app/lib/types";
 
 export const runtime = "edge";
 
@@ -35,9 +35,26 @@ export async function GET(
     );
   }
 
-  const visible = sortSegments(breakdown.segments)
-    .filter((s) => s.type !== "protocol" && s.type !== "host")
-    .slice(0, 6);
+  const allVisible = sortSegments(breakdown.segments).filter(
+    (s) => s.type !== "protocol" && s.type !== "host"
+  );
+  const visible = allVisible.slice(0, 6);
+  const hasMore = allVisible.length > visible.length;
+
+  // Dynamic height calculation
+  const URL_CHARS_PER_LINE = 75; // ~1080px / (24px * 0.6 monospace ratio)
+  const urlLines = Math.max(1, Math.ceil(breakdown.originalUrl.length / URL_CHARS_PER_LINE));
+  const segCount = visible.length;
+  const height = Math.max(
+    300,
+    60 + // top padding
+    30 + // "URL Explainer" label (18px) + 12px margin
+    urlLines * 34 + // URL display
+    32 + // section margin
+    segCount * 52 + Math.max(0, segCount - 1) * 12 + // cards + gaps
+    (hasMore ? 30 : 0) + // "more segments" footer
+    60 // bottom padding
+  );
 
   return new ImageResponse(
     (
@@ -145,13 +162,13 @@ export async function GET(
           })}
         </div>
 
-        {visible.length < sortSegments(breakdown.segments).filter((s) => s.type !== "protocol" && s.type !== "host").length && (
+        {hasMore && (
           <div style={{ fontSize: 14, color: "#a1a1aa", marginTop: "8px" }}>
-            +{sortSegments(breakdown.segments).filter((s) => s.type !== "protocol" && s.type !== "host").length - visible.length} more segments
+            +{allVisible.length - visible.length} more segments
           </div>
         )}
       </div>
     ),
-    { width: 1200, height: 630 }
+    { width: 1200, height }
   );
 }
