@@ -211,7 +211,7 @@ function DirectoryNode({
   const [renaming, setRenaming] = useState(false);
   const [newName, setNewName] = useState(dir.name);
   const [dragOver, setDragOver] = useState(false);
-  const renameRef = useRef<HTMLInputElement>(null);
+  const renameRef = useRef<HTMLInputElement | null>(null);
 
   const menuId = `dir-${dir.id}`;
   const isMenuOpen = openMenuId === menuId;

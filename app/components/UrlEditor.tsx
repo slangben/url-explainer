@@ -30,7 +30,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
 
   // Save dialog state
   const [showSave, setShowSave] = useState(false);
