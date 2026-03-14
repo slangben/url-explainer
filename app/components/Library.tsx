@@ -13,6 +13,8 @@ import { UrlSegment } from "../lib/types";
 
 interface LibraryProps {
   onLoad: (data: { originalUrl: string; segments: UrlSegment[] }) => void;
+  open: boolean;
+  onClose: () => void;
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -375,7 +377,7 @@ function DirectoryNode({
 
 // ─── Library ──────────────────────────────────────────────────────────────────
 
-export default function Library({ onLoad }: LibraryProps) {
+export default function Library({ onLoad, open, onClose }: LibraryProps) {
   const allDirs = (useLiveQuery(() => db.directories.orderBy("createdAt").toArray()) ?? []) as DirRow[];
   const allUrls = (useLiveQuery(() => db.savedUrls.orderBy("createdAt").reverse().toArray()) ?? []) as UrlRow[];
 
@@ -405,22 +407,42 @@ export default function Library({ onLoad }: LibraryProps) {
   };
 
   return (
-    <aside className="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 flex flex-col bg-white dark:bg-zinc-950 h-screen sticky top-0">
+    <aside
+      className={`
+        fixed right-0 top-0 bottom-0 z-40 w-72
+        transition-transform duration-300 ease-in-out
+        ${open ? "translate-x-0" : "translate-x-full"}
+        md:sticky md:top-0 md:bottom-auto md:h-screen md:w-64 md:translate-x-0 md:transition-none
+        shrink-0 border-l border-zinc-200 dark:border-zinc-800
+        flex flex-col bg-white dark:bg-zinc-950
+      `}
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0">
         <span className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
           Library
         </span>
-        <button
-          title="New folder"
-          onClick={() => db.directories.add({ name: "New Folder", parentId: null, createdAt: Date.now() })}
-          className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M1.5 4.5A1.5 1.5 0 013 3h3l1.5 1.5H13A1.5 1.5 0 0114.5 5.3v6.2A1.5 1.5 0 0113 13H3a1.5 1.5 0 01-1.5-1.5v-8z" />
-            <path d="M8 7v4M6 9h4" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            title="New folder"
+            onClick={() => db.directories.add({ name: "New Folder", parentId: null, createdAt: Date.now() })}
+            className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1.5 4.5A1.5 1.5 0 013 3h3l1.5 1.5H13A1.5 1.5 0 0114.5 5.3v6.2A1.5 1.5 0 0113 13H3a1.5 1.5 0 01-1.5-1.5v-8z" />
+              <path d="M8 7v4M6 9h4" />
+            </svg>
+          </button>
+          <button
+            title="Close"
+            onClick={onClose}
+            className="md:hidden rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3l10 10M13 3L3 13" />
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Tree */}

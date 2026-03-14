@@ -165,7 +165,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
         <label htmlFor="url-input" className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           Enter a URL to break down
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             value={protocol}
             onChange={(e) => { setProtocol(e.target.value); setParsed(false); setShareUrl(null); }}
@@ -185,7 +185,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
           />
           <button
             onClick={handleParse}
-            className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="rounded-lg w-full sm:w-auto bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
             Parse
           </button>
