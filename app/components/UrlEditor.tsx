@@ -1,18 +1,28 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
-import { UrlSegment } from "../lib/types";
+import { useLiveQuery } from "dexie-react-hooks";
+import { UrlSegment, UrlBreakdown } from "../lib/types";
 import { parseUrl } from "../lib/url-parser";
 import { encodeBreakdown } from "../lib/encoding";
 import { getSegmentColor, sortSegments } from "../lib/segment-colors";
+import { db, flattenDirs, type DirRow } from "../lib/db";
 
-// Allow unreserved chars, percent-encoded sequences, and common URL sub-delimiters.
-// Strips spaces and anything outside this set.
 function sanitizeSegmentValue(value: string): string {
   return value.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/g, "");
 }
 
-export default function UrlEditor() {
+function splitProtocol(url: string): { protocol: string; rest: string } {
+  if (url.startsWith("https://")) return { protocol: "https://", rest: url.slice(8) };
+  if (url.startsWith("http://")) return { protocol: "http://", rest: url.slice(7) };
+  return { protocol: "https://", rest: url };
+}
+
+interface UrlEditorProps {
+  loadedBreakdown?: UrlBreakdown | null;
+}
+
+export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   const [protocol, setProtocol] = useState("https://");
   const [rawUrl, setRawUrl] = useState("");
   const [segments, setSegments] = useState<UrlSegment[]>([]);
@@ -20,8 +30,30 @@ export default function UrlEditor() {
   const [shareUrl, setShareUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
-  const addMenuRef = useRef<HTMLDivElement>(null);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // Save dialog state
+  const [showSave, setShowSave] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saveDirId, setSaveDirId] = useState<number | null>(null);
+  const [savedFlash, setSavedFlash] = useState(false);
+
+  const dirs = (useLiveQuery(() => db.directories.orderBy("createdAt").toArray()) ?? []) as DirRow[];
+  const flatDirs = flattenDirs(dirs);
+
+  // Load breakdown from library click
+  useEffect(() => {
+    if (!loadedBreakdown) return;
+    const { protocol: p, rest } = splitProtocol(loadedBreakdown.originalUrl);
+    setProtocol(p);
+    setRawUrl(rest);
+    setSegments(loadedBreakdown.segments);
+    setParsed(true);
+    setShareUrl(null);
+    setShowSave(false);
+  }, [loadedBreakdown]);
+
+  // Close add-segment menu on outside click
   useEffect(() => {
     if (!showAddMenu) return;
     const handler = (e: MouseEvent) => {
@@ -40,6 +72,7 @@ export default function UrlEditor() {
     setSegments(result);
     setParsed(true);
     setShareUrl(null);
+    setShowSave(false);
   }, [rawUrl, protocol]);
 
   const rebuildUrl = (segs: UrlSegment[]): string => {
@@ -47,14 +80,11 @@ export default function UrlEditor() {
     const host = segs.find((s) => s.type === "host")?.value || "";
     const port = segs.find((s) => s.type === "port")?.value || "";
     const pathParts = segs.filter((s) => s.type === "pathname").map((s) => s.value).filter(Boolean);
-    const params = segs
-      .filter((s) => s.type === "search-param")
-      .map((s) => s.value)
-      .join("&");
+    const params = segs.filter((s) => s.type === "search-param").map((s) => s.value).join("&");
     const hash = segs.find((s) => s.type === "hash")?.value || "";
 
     setProtocol(`${proto}://`);
-    let url = `${host}`;
+    let url = host;
     if (port) url += `:${port}`;
     url += pathParts.length ? `/${pathParts.join("/")}` : "/";
     if (params) url += `?${params}`;
@@ -66,9 +96,7 @@ export default function UrlEditor() {
     const sanitized = field === "value" ? sanitizeSegmentValue(value) : value;
     setSegments((prev) => {
       const updated = prev.map((s) => (s.id === id ? { ...s, [field]: sanitized } : s));
-      if (field === "value") {
-        setRawUrl(rebuildUrl(updated));
-      }
+      if (field === "value") setRawUrl(rebuildUrl(updated));
       return updated;
     });
     setShareUrl(null);
@@ -99,8 +127,7 @@ export default function UrlEditor() {
 
   const handleShare = () => {
     const encoded = encodeBreakdown({ originalUrl: protocol + rawUrl, segments });
-    const url = `${window.location.origin}/s/${encoded}`;
-    setShareUrl(url);
+    setShareUrl(`${window.location.origin}/s/${encoded}`);
     setCopied(false);
   };
 
@@ -111,20 +138,37 @@ export default function UrlEditor() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const openSaveDialog = () => {
+    setSaveTitle(protocol + rawUrl);
+    setSaveDirId(null);
+    setShowSave(true);
+  };
+
+  const handleSave = async () => {
+    const title = saveTitle.trim() || protocol + rawUrl;
+    await db.savedUrls.add({
+      directoryId: saveDirId,
+      title,
+      originalUrl: protocol + rawUrl,
+      segments,
+      createdAt: Date.now(),
+    });
+    setShowSave(false);
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 2000);
+  };
+
   return (
     <div className="w-full max-w-2xl mx-auto flex flex-col gap-8">
+      {/* URL input */}
       <div className="flex flex-col gap-3">
         <label htmlFor="url-input" className="text-sm font-medium text-zinc-500 dark:text-zinc-400">
           Enter a URL to break down
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <select
             value={protocol}
-            onChange={(e) => {
-              setProtocol(e.target.value);
-              setParsed(false);
-              setShareUrl(null);
-            }}
+            onChange={(e) => { setProtocol(e.target.value); setParsed(false); setShareUrl(null); }}
             className="rounded-lg border border-zinc-200 bg-white px-2 py-3 text-sm font-mono outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500"
           >
             <option value="https://">https://</option>
@@ -134,18 +178,14 @@ export default function UrlEditor() {
             id="url-input"
             type="text"
             value={rawUrl}
-            onChange={(e) => {
-              setRawUrl(e.target.value);
-              setParsed(false);
-              setShareUrl(null);
-            }}
+            onChange={(e) => { setRawUrl(e.target.value); setParsed(false); setShareUrl(null); }}
             onKeyDown={(e) => e.key === "Enter" && handleParse()}
             placeholder="example.com/path?key=value#section"
             className="flex-1 rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm font-mono outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500"
           />
           <button
             onClick={handleParse}
-            className="rounded-lg bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="rounded-lg w-full sm:w-auto bg-zinc-900 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
             Parse
           </button>
@@ -154,71 +194,75 @@ export default function UrlEditor() {
 
       {parsed && segments.length > 0 && (
         <>
+          {/* Segment cards */}
           <div className="flex flex-col gap-3">
-            {sortSegments(segments).filter((seg) => seg.type !== "protocol" && seg.type !== "host").map((seg) => (
-              <div
-                key={seg.id}
-                className={`rounded-lg border p-4 flex flex-col gap-2 ${getSegmentColor(seg, segments)}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="text-xs font-semibold uppercase tracking-wider opacity-70 shrink-0">
-                      {seg.type === "search-param" ? "Param" : seg.label}
-                    </span>
-                    {seg.type === "search-param" ? (() => {
-                      const eqIdx = seg.value.indexOf("=");
-                      const paramKey = eqIdx === -1 ? seg.value : seg.value.slice(0, eqIdx);
-                      const paramVal = eqIdx === -1 ? "" : seg.value.slice(eqIdx + 1);
-                      return (
-                        <>
-                          <input
-                            type="text"
-                            value={paramKey}
-                            onChange={(e) => updateSegment(seg.id, "value", `${e.target.value}=${paramVal}`)}
-                            placeholder="name"
-                            className="text-sm font-mono w-28 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
-                          />
-                          <span className="text-xs opacity-50 shrink-0">=</span>
-                          <input
-                            type="text"
-                            value={paramVal}
-                            onChange={(e) => updateSegment(seg.id, "value", `${paramKey}=${e.target.value}`)}
-                            placeholder="value"
-                            className="text-sm font-mono min-w-0 flex-1 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
-                          />
-                        </>
-                      );
-                    })() : (
-                      <input
-                        type="text"
-                        value={seg.value}
-                        onChange={(e) => updateSegment(seg.id, "value", e.target.value)}
-                        className="text-sm font-mono truncate min-w-0 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none dark:bg-black/20"
-                      />
-                    )}
+            {sortSegments(segments)
+              .filter((seg) => seg.type !== "protocol" && seg.type !== "host")
+              .map((seg) => (
+                <div
+                  key={seg.id}
+                  className={`rounded-lg border p-4 flex flex-col gap-2 ${getSegmentColor(seg, segments)}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <span className="text-xs font-semibold uppercase tracking-wider opacity-70 shrink-0">
+                        {seg.type === "search-param" ? "Param" : seg.label}
+                      </span>
+                      {seg.type === "search-param" ? (() => {
+                        const eqIdx = seg.value.indexOf("=");
+                        const paramKey = eqIdx === -1 ? seg.value : seg.value.slice(0, eqIdx);
+                        const paramVal = eqIdx === -1 ? "" : seg.value.slice(eqIdx + 1);
+                        return (
+                          <>
+                            <input
+                              type="text"
+                              value={paramKey}
+                              onChange={(e) => updateSegment(seg.id, "value", `${e.target.value}=${paramVal}`)}
+                              placeholder="name"
+                              className="text-sm font-mono w-28 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
+                            />
+                            <span className="text-xs opacity-50 shrink-0">=</span>
+                            <input
+                              type="text"
+                              value={paramVal}
+                              onChange={(e) => updateSegment(seg.id, "value", `${paramKey}=${e.target.value}`)}
+                              placeholder="value"
+                              className="text-sm font-mono min-w-0 flex-1 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none placeholder:opacity-40 dark:bg-black/20"
+                            />
+                          </>
+                        );
+                      })() : (
+                        <input
+                          type="text"
+                          value={seg.value}
+                          onChange={(e) => updateSegment(seg.id, "value", e.target.value)}
+                          className="text-sm font-mono truncate min-w-0 rounded border border-current/10 bg-white/50 px-2 py-0.5 outline-none dark:bg-black/20"
+                        />
+                      )}
+                    </div>
+                    <button
+                      onClick={() => removeSegment(seg.id)}
+                      className="shrink-0 rounded p-1 opacity-50 transition-opacity hover:opacity-100"
+                      aria-label="Remove segment"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
                   </div>
-                  <button
-                    onClick={() => removeSegment(seg.id)}
-                    className="shrink-0 rounded p-1 opacity-50 transition-opacity hover:opacity-100"
-                    aria-label="Remove segment"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M4 4l8 8M12 4l-8 8" />
-                    </svg>
-                  </button>
+                  <input
+                    type="text"
+                    value={seg.description}
+                    onChange={(e) => updateSegment(seg.id, "description", e.target.value)}
+                    placeholder="Add a description…"
+                    className="w-full rounded border border-current/10 bg-white/50 px-3 py-1.5 text-sm outline-none placeholder:opacity-40 dark:bg-black/20"
+                  />
                 </div>
-                <input
-                  type="text"
-                  value={seg.description}
-                  onChange={(e) => updateSegment(seg.id, "description", e.target.value)}
-                  placeholder="Add a description…"
-                  className="w-full rounded border border-current/10 bg-white/50 px-3 py-1.5 text-sm outline-none placeholder:opacity-40 dark:bg-black/20"
-                />
-              </div>
-            ))}
+              ))}
           </div>
 
-          <div className="flex gap-3">
+          {/* Actions */}
+          <div className="flex gap-3 flex-wrap">
             <div ref={addMenuRef} className="relative">
               <button
                 onClick={() => setShowAddMenu((v) => !v)}
@@ -240,14 +284,23 @@ export default function UrlEditor() {
                 </div>
               )}
             </div>
+
             <button
               onClick={handleShare}
-              className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="rounded-lg border border-zinc-200 px-5 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
               Share
             </button>
+
+            <button
+              onClick={openSaveDialog}
+              className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              {savedFlash ? "Saved ✓" : "Save"}
+            </button>
           </div>
 
+          {/* Share link */}
           {shareUrl && (
             <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
               <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Shareable link</p>
@@ -262,6 +315,48 @@ export default function UrlEditor() {
                   className="shrink-0 rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
                   {copied ? "Copied!" : "Copy"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Save dialog */}
+          {showSave && (
+            <div className="flex flex-col gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Save to library</p>
+              <input
+                type="text"
+                value={saveTitle}
+                onChange={(e) => setSaveTitle(e.target.value)}
+                placeholder="Title"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setShowSave(false); }}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-500"
+              />
+              <select
+                value={saveDirId ?? ""}
+                onChange={(e) => setSaveDirId(e.target.value ? Number(e.target.value) : null)}
+                className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-800 dark:focus:border-zinc-500"
+              >
+                <option value="">No folder</option>
+                {flatDirs.map(({ dir, depth }) => (
+                  <option key={dir.id} value={dir.id}>
+                    {"  ".repeat(depth)}{dir.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => setShowSave(false)}
+                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                >
+                  Cancel
                 </button>
               </div>
             </div>
