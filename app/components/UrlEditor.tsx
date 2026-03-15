@@ -12,10 +12,9 @@ function sanitizeSegmentValue(value: string): string {
   return value.replace(/[^A-Za-z0-9\-._~!$&'()*+,;=:@%]/g, "");
 }
 
-function splitProtocol(url: string): { protocol: string; rest: string } {
-  if (url.startsWith("https://")) return { protocol: "https://", rest: url.slice(8) };
-  if (url.startsWith("http://")) return { protocol: "http://", rest: url.slice(7) };
-  return { protocol: "https://", rest: url };
+function withProtocol(url: string): string {
+  if (url.startsWith("https://") || url.startsWith("http://")) return url;
+  return "https://" + url;
 }
 
 interface UrlEditorProps {
@@ -23,7 +22,6 @@ interface UrlEditorProps {
 }
 
 export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
-  const [protocol, setProtocol] = useState("https://");
   const [rawUrl, setRawUrl] = useState("");
   const [segments, setSegments] = useState<UrlSegment[]>([]);
   const [parsed, setParsed] = useState(false);
@@ -44,9 +42,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   // Load breakdown from library click
   useEffect(() => {
     if (!loadedBreakdown) return;
-    const { protocol: p, rest } = splitProtocol(loadedBreakdown.originalUrl);
-    setProtocol(p);
-    setRawUrl(rest);
+    setRawUrl(loadedBreakdown.originalUrl);
     setSegments(loadedBreakdown.segments);
     setParsed(true);
     setShareUrl(null);
@@ -68,12 +64,12 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   const handleParse = useCallback(() => {
     const input = rawUrl.trim();
     if (!input) return;
-    const result = parseUrl(protocol + input);
+    const result = parseUrl(withProtocol(input));
     setSegments(result);
     setParsed(true);
     setShareUrl(null);
     setShowSave(false);
-  }, [rawUrl, protocol]);
+  }, [rawUrl]);
 
   const rebuildUrl = (segs: UrlSegment[]): string => {
     const proto = segs.find((s) => s.type === "protocol")?.value || "https";
@@ -83,8 +79,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
     const params = segs.filter((s) => s.type === "search-param").map((s) => s.value).join("&");
     const hash = segs.find((s) => s.type === "hash")?.value || "";
 
-    setProtocol(`${proto}://`);
-    let url = host;
+    let url = `${proto}://${host}`;
     if (port) url += `:${port}`;
     url += pathParts.length ? `/${pathParts.join("/")}` : "/";
     if (params) url += `?${params}`;
@@ -126,7 +121,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   };
 
   const handleShare = () => {
-    const encoded = encodeBreakdown({ originalUrl: protocol + rawUrl, segments });
+    const encoded = encodeBreakdown({ originalUrl: withProtocol(rawUrl), segments });
     setShareUrl(`${window.location.origin}/s/${encoded}`);
     setCopied(false);
   };
@@ -139,17 +134,17 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   };
 
   const openSaveDialog = () => {
-    setSaveTitle(protocol + rawUrl);
+    setSaveTitle(withProtocol(rawUrl));
     setSaveDirId(null);
     setShowSave(true);
   };
 
   const handleSave = async () => {
-    const title = saveTitle.trim() || protocol + rawUrl;
+    const title = saveTitle.trim() || withProtocol(rawUrl);
     await db.savedUrls.add({
       directoryId: saveDirId,
       title,
-      originalUrl: protocol + rawUrl,
+      originalUrl: withProtocol(rawUrl),
       segments,
       createdAt: Date.now(),
     });
@@ -166,14 +161,6 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
           Enter a URL to break down
         </label>
         <div className="flex flex-wrap gap-2">
-          <select
-            value={protocol}
-            onChange={(e) => { setProtocol(e.target.value); setParsed(false); setShareUrl(null); }}
-            className="rounded-lg border border-zinc-200 bg-white px-2 py-3 text-sm font-mono outline-none focus:border-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:focus:border-zinc-500"
-          >
-            <option value="https://">https://</option>
-            <option value="http://">http://</option>
-          </select>
           <input
             id="url-input"
             type="text"

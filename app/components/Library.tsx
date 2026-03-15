@@ -119,9 +119,9 @@ function UrlItem({
       </span>
 
       {/* Menu button */}
-      <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+      <div className="relative shrink-0" data-menu-container onClick={(e) => e.stopPropagation()}>
         <button
-          className={`rounded p-0.5 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity ${isMenuOpen ? "!opacity-100" : ""}`}
+          className={`rounded p-0.5 sm:opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity ${isMenuOpen ? "!opacity-100" : ""}`}
           onClick={(e) => {
             e.stopPropagation();
             if (isMenuOpen) { setOpenMenuId(null); setShowMoveTo(false); }
@@ -302,9 +302,9 @@ function DirectoryNode({
         </button>
 
         {/* Menu button */}
-        <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+        <div className="relative shrink-0" data-menu-container onClick={(e) => e.stopPropagation()}>
           <button
-            className={`rounded p-0.5 opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity ${isMenuOpen ? "!opacity-100" : ""}`}
+            className={`rounded p-0.5 sm:opacity-0 group-hover:opacity-50 hover:!opacity-100 transition-opacity ${isMenuOpen ? "!opacity-100" : ""}`}
             onClick={(e) => {
               e.stopPropagation();
               setOpenMenuId(isMenuOpen ? null : menuId);
@@ -392,7 +392,10 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
   // Close menus on outside click
   useEffect(() => {
     if (!openMenuId) return;
-    const close = () => setOpenMenuId(null);
+    const close = (e: MouseEvent) => {
+      if ((e.target as Element).closest("[data-menu-container]")) return;
+      setOpenMenuId(null);
+    };
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, [openMenuId]);
