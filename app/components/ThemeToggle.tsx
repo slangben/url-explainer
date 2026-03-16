@@ -11,11 +11,11 @@ export default function ThemeToggle() {
   }, []);
 
   const toggle = () => {
-    const next = !dark;
-    setDark(next);
+    const next = !document.documentElement.classList.contains("dark");
     document.documentElement.classList.toggle("dark", next);
     document.documentElement.classList.toggle("light", !next);
     localStorage.setItem("theme", next ? "dark" : "light");
+    setDark(next);
   };
 
   return (
@@ -32,8 +32,8 @@ export default function ThemeToggle() {
         </svg>
       ) : (
         // Moon — click to go dark
-        <svg viewBox="0 0 16 16" className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M13.5 10A6 6 0 016 2.5a6 6 0 100 11 6 6 0 007.5-3.5z" />
+        <svg viewBox="0 0 24 24" className="w-4 h-4 text-zinc-400" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
         </svg>
       )}
     </button>
