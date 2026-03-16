@@ -1,5 +1,3 @@
-import { UrlBreakdown } from "./types";
-
 function toUrlSafe(b64: string): string {
   return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
@@ -9,24 +7,20 @@ function fromUrlSafe(b64: string): string {
   return padded.replace(/-/g, "+").replace(/_/g, "/");
 }
 
-export function encodeBreakdown(breakdown: UrlBreakdown): string {
-  const json = JSON.stringify(breakdown);
+export function encodeUrl(url: string): string {
   if (typeof window !== "undefined") {
-    return toUrlSafe(btoa(unescape(encodeURIComponent(json))));
+    return toUrlSafe(btoa(unescape(encodeURIComponent(url))));
   }
-  return toUrlSafe(Buffer.from(json, "utf-8").toString("base64"));
+  return toUrlSafe(Buffer.from(url, "utf-8").toString("base64"));
 }
 
-export function decodeBreakdown(encoded: string): UrlBreakdown | null {
+export function decodeUrl(encoded: string): string | null {
   try {
     const safe = fromUrlSafe(encoded);
-    let json: string;
     if (typeof window !== "undefined") {
-      json = decodeURIComponent(escape(atob(safe)));
-    } else {
-      json = Buffer.from(safe, "base64").toString("utf-8");
+      return decodeURIComponent(escape(atob(safe)));
     }
-    return JSON.parse(json) as UrlBreakdown;
+    return Buffer.from(safe, "base64").toString("utf-8");
   } catch {
     return null;
   }

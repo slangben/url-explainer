@@ -1,5 +1,6 @@
 import { Metadata } from "next";
-import { decodeBreakdown } from "../../lib/encoding";
+import { decodeUrl } from "../../lib/encoding";
+import { parseUrl } from "../../lib/url-parser";
 import { UrlSegment } from "../../lib/types";
 import { getSegmentColor, getSegmentColorHex, sortSegments } from "../../lib/segment-colors";
 import { colorizeUrl } from "../../lib/colorize-url";
@@ -8,9 +9,15 @@ type Props = {
   params: Promise<{ data: string }>;
 };
 
+function decodeBreakdown(data: string) {
+  const url = decodeUrl(decodeURIComponent(data));
+  if (!url) return null;
+  return { originalUrl: url, segments: parseUrl(url) };
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data } = await params;
-  const breakdown = decodeBreakdown(decodeURIComponent(data));
+  const breakdown = decodeBreakdown(data);
   const title = breakdown
     ? `URL Explained: ${breakdown.originalUrl}`
     : "URL Explainer";
@@ -70,7 +77,7 @@ function SegmentCard({ segment, allSegments }: { segment: UrlSegment; allSegment
 
 export default async function SharePage({ params }: Props) {
   const { data } = await params;
-  const breakdown = decodeBreakdown(decodeURIComponent(data));
+  const breakdown = decodeBreakdown(data);
 
   if (!breakdown) {
     return (
