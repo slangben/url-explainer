@@ -23,23 +23,28 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ? `URL Explained: ${breakdown.originalUrl}`
     : "URL Explainer";
 
+  const visibleSegments = breakdown
+    ? breakdown.segments.filter((s) => s.type !== "protocol" && s.type !== "host")
+    : [];
+  const description = breakdown
+    ? `Annotated breakdown of ${breakdown.originalUrl} across ${visibleSegments.length} part${visibleSegments.length !== 1 ? "s" : ""} — path, query parameters, and fragments.`
+    : "Annotated URL breakdown — path, query parameters, and fragments.";
+
   return {
     title,
-    description: breakdown
-      ? `Breakdown of ${breakdown.originalUrl} into ${breakdown.segments.length} parts`
-      : "URL breakdown",
+    description,
+    alternates: {
+      canonical: `https://url-explainer.com/s/${data}`,
+    },
     openGraph: {
       title,
-      images: [
-        {
-          url: `/s/${data}/og`,
-          width: 1200,
-        },
-      ],
+      description,
+      images: [{ url: `/s/${data}/og`, width: 1200, height: 630 }],
     },
     twitter: {
       card: "summary_large_image",
       title,
+      description,
       images: [`/s/${data}/og`],
     },
   };
