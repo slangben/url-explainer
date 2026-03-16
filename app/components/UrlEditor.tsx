@@ -140,6 +140,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   };
 
   const handleSave = async () => {
+    navigator.storage?.persist?.();
     const title = saveTitle.trim() || withProtocol(rawUrl);
     await db.savedUrls.add({
       directoryId: saveDirId,
