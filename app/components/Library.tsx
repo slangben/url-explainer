@@ -9,6 +9,7 @@ import {
   type DirRow,
   type UrlRow,
 } from "../lib/db";
+import { exportFolder, exportUrl, importBundle } from "../lib/transfer";
 import { UrlSegment } from "../lib/types";
 
 interface LibraryProps {
@@ -72,6 +73,7 @@ interface UrlItemProps {
   setDraggingUrlId: (id: number | null) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
+  onExportKey: (key: string) => void;
 }
 
 function UrlItem({
@@ -83,6 +85,7 @@ function UrlItem({
   setDraggingUrlId,
   openMenuId,
   setOpenMenuId,
+  onExportKey,
 }: UrlItemProps) {
   const menuId = `url-${url.id}`;
   const isMenuOpen = openMenuId === menuId;
@@ -172,6 +175,18 @@ function UrlItem({
 
             <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
             <button
+              className="w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+              onClick={async (e) => {
+                e.stopPropagation();
+                setOpenMenuId(null);
+                const key = await exportUrl(url);
+                onExportKey(key);
+              }}
+            >
+              Export key
+            </button>
+            <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
+            <button
               className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
               onClick={(e) => { e.stopPropagation(); handleDelete(); }}
             >
@@ -196,6 +211,7 @@ interface DirNodeProps {
   setDraggingUrlId: (id: number | null) => void;
   openMenuId: string | null;
   setOpenMenuId: (id: string | null) => void;
+  onExportKey: (key: string) => void;
 }
 
 function DirectoryNode({
@@ -208,6 +224,7 @@ function DirectoryNode({
   setDraggingUrlId,
   openMenuId,
   setOpenMenuId,
+  onExportKey,
 }: DirNodeProps) {
   const [expanded, setExpanded] = useState(true);
   const [renaming, setRenaming] = useState(false);
@@ -327,6 +344,17 @@ function DirectoryNode({
               >
                 New subfolder
               </button>
+              <button
+                className="w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                onClick={async (e) => {
+                  e.stopPropagation();
+                  setOpenMenuId(null);
+                  const key = await exportFolder(dir.id, allDirs, allUrls);
+                  onExportKey(key);
+                }}
+              >
+                Export key
+              </button>
               <div className="my-1 border-t border-zinc-100 dark:border-zinc-800" />
               <button
                 className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-zinc-50 dark:hover:bg-zinc-800"
@@ -354,6 +382,7 @@ function DirectoryNode({
               setDraggingUrlId={setDraggingUrlId}
               openMenuId={openMenuId}
               setOpenMenuId={setOpenMenuId}
+              onExportKey={onExportKey}
             />
           ))}
           {urls.map((url) => (
@@ -367,6 +396,7 @@ function DirectoryNode({
               setDraggingUrlId={setDraggingUrlId}
               openMenuId={openMenuId}
               setOpenMenuId={setOpenMenuId}
+              onExportKey={onExportKey}
             />
           ))}
         </div>
@@ -384,6 +414,49 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
   const [draggingUrlId, setDraggingUrlId] = useState<number | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [uncatDragOver, setUncatDragOver] = useState(false);
+
+  const [exportKey, setExportKey] = useState<string | null>(null);
+  const [exportCopied, setExportCopied] = useState(false);
+  const exportTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const [showImport, setShowImport] = useState(false);
+  const [importKey, setImportKey] = useState("");
+  const [importStatus, setImportStatus] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleExportKey = (key: string) => {
+    setExportKey(key);
+    setExportCopied(false);
+  };
+
+  const handleExportCopy = async () => {
+    if (!exportKey) return;
+    await navigator.clipboard.writeText(exportKey);
+    setExportCopied(true);
+    setTimeout(() => setExportCopied(false), 2000);
+  };
+
+  useEffect(() => {
+    if (exportKey) exportTextareaRef.current?.select();
+  }, [exportKey]);
+
+  const handleImport = async () => {
+    if (!importKey.trim()) return;
+    setImporting(true);
+    setImportStatus(null);
+    try {
+      const { dirs, urls } = await importBundle(importKey);
+      const parts = [];
+      if (dirs > 0) parts.push(`${dirs} folder${dirs !== 1 ? "s" : ""}`);
+      parts.push(`${urls} URL${urls !== 1 ? "s" : ""}`);
+      setImportStatus({ ok: true, msg: `Imported ${parts.join(" and ")}.` });
+      setImportKey("");
+    } catch {
+      setImportStatus({ ok: false, msg: "Invalid or corrupted key." });
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const rootDirs = allDirs.filter((d) => d.parentId === null);
   const uncategorized = allUrls.filter((u) => u.directoryId === null);
@@ -427,6 +500,16 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
         </span>
         <div className="flex items-center gap-1">
           <button
+            title="Import from key"
+            onClick={() => { setShowImport((v) => !v); setImportStatus(null); }}
+            className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
+          >
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8 2v8M5 7l3 3 3-3" />
+              <path d="M2.5 11v1.5A1.5 1.5 0 004 14h8a1.5 1.5 0 001.5-1.5V11" />
+            </svg>
+          </button>
+          <button
             title="New folder"
             onClick={() => db.directories.add({ name: "New Folder", parentId: null, createdAt: Date.now() })}
             className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"
@@ -447,6 +530,39 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
           </button>
         </div>
       </div>
+
+      {/* Import panel */}
+      {showImport && (
+        <div className="px-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800 shrink-0 flex flex-col gap-2">
+          <textarea
+            rows={3}
+            value={importKey}
+            onChange={(e) => setImportKey(e.target.value)}
+            placeholder="Paste export key…"
+            className="w-full text-xs font-mono rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 px-2 py-1.5 outline-none resize-none placeholder:text-zinc-400"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleImport}
+              disabled={importing || !importKey.trim()}
+              className="flex-1 rounded py-1.5 text-xs font-medium bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 disabled:opacity-40 transition-opacity"
+            >
+              {importing ? "Importing…" : "Import"}
+            </button>
+            <button
+              onClick={() => { setShowImport(false); setImportKey(""); setImportStatus(null); }}
+              className="rounded py-1.5 px-2.5 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {importStatus && (
+            <p className={`text-xs ${importStatus.ok ? "text-green-600 dark:text-green-400" : "text-red-500"}`}>
+              {importStatus.msg}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Tree */}
       <div className="flex-1 overflow-y-auto py-2 px-1.5 min-h-0">
@@ -469,6 +585,7 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
                 setDraggingUrlId={setDraggingUrlId}
                 openMenuId={openMenuId}
                 setOpenMenuId={setOpenMenuId}
+                onExportKey={handleExportKey}
               />
             ))}
 
@@ -503,6 +620,7 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
                     setDraggingUrlId={setDraggingUrlId}
                     openMenuId={openMenuId}
                     setOpenMenuId={setOpenMenuId}
+                    onExportKey={handleExportKey}
                   />
                 ))}
               </div>
@@ -515,9 +633,48 @@ export default function Library({ onLoad, open, onClose }: LibraryProps) {
       <div className="shrink-0 px-4 py-3 border-t border-zinc-100 dark:border-zinc-800">
         <p className="text-xs leading-relaxed text-zinc-400 dark:text-zinc-600">
           <span className="font-semibold text-zinc-500 dark:text-zinc-500">Local only.</span>{" "}
-          Data is stored in this browser and won't sync across devices or survive clearing site data.
+          Use export keys to move items to another browser or device.
         </p>
       </div>
+
+      {/* Export key modal */}
+      {exportKey && (
+        <div
+          className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-6"
+          onClick={() => setExportKey(null)}
+        >
+          <div
+            className="w-full max-w-xs rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-900 p-4 flex flex-col gap-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Export key</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500 mt-0.5">Paste this key in another browser to import.</p>
+            </div>
+            <textarea
+              ref={exportTextareaRef}
+              readOnly
+              rows={5}
+              value={exportKey}
+              className="w-full text-xs font-mono rounded border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 px-2 py-1.5 outline-none resize-none"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleExportCopy}
+                className="flex-1 rounded py-1.5 text-xs font-medium bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 transition-opacity"
+              >
+                {exportCopied ? "Copied!" : "Copy key"}
+              </button>
+              <button
+                onClick={() => setExportKey(null)}
+                className="rounded py-1.5 px-3 text-xs text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }
