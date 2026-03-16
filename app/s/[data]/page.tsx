@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import CopyButton from "./CopyButton";
 import { decodeUrl } from "../../lib/encoding";
 import { parseUrl } from "../../lib/url-parser";
 import { UrlSegment } from "../../lib/types";
@@ -42,6 +43,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [`/s/${data}/og`],
     },
   };
+}
+
+function buildMarkdown(originalUrl: string, segments: UrlSegment[]): string {
+  const rows = sortSegments(segments)
+    .filter((s) => s.type !== "protocol" && s.type !== "host")
+    .map((s) => {
+      const type = s.type === "search-param" ? "Param" : s.label;
+      const eqIdx = s.value.indexOf("=");
+      const value = s.type === "search-param" && eqIdx !== -1
+        ? `\`${s.value.slice(0, eqIdx)}\` = \`${s.value.slice(eqIdx + 1)}\``
+        : `\`${s.value}\``;
+      return `| ${type} | ${value} | ${s.description} |`;
+    });
+
+  const header = `# ${originalUrl}\n\n| Segment | Value | Description |\n|---------|-------|-------------|`;
+  return [header, ...rows].join("\n");
 }
 
 function SegmentCard({ segment, allSegments }: { segment: UrlSegment; allSegments: UrlSegment[] }) {
@@ -92,9 +109,10 @@ export default async function SharePage({ params }: Props) {
       <main className="w-full max-w-3xl px-6 py-20">
         <div className="mb-8 flex flex-col gap-2">
           <h1 className="text-sm font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-            URL Explained
+            url-explainer.com
           </h1>
-          <p className="text-2xl font-mono break-all leading-relaxed">
+          <div className="flex items-start gap-2">
+          <p className="text-2xl font-mono break-all leading-relaxed flex-1">
             {colorizeUrl(breakdown.originalUrl, breakdown.segments).map((piece, i) =>
               piece.segment ? (
                 <span
@@ -113,6 +131,8 @@ export default async function SharePage({ params }: Props) {
               )
             )}
           </p>
+            <CopyButton text={breakdown.originalUrl} />
+          </div>
         </div>
 
         <div className="flex flex-col gap-3 mb-10">
@@ -123,12 +143,15 @@ export default async function SharePage({ params }: Props) {
             ))}
         </div>
 
-        <a
-          href="/"
-          className="inline-block rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-        >
-          ← Explain your own URL
-        </a>
+        <div className="flex items-center gap-3">
+          <a
+            href="/"
+            className="inline-block rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            ← Explain your own URL
+          </a>
+          <CopyButton text={buildMarkdown(breakdown.originalUrl, breakdown.segments)} label="Copy as Markdown" />
+        </div>
       </main>
     </div>
   );
