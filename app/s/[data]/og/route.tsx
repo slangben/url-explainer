@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
-import { decodeBreakdown } from "@/app/lib/encoding";
+import { decodeUrl } from "@/app/lib/encoding";
+import { parseUrl } from "@/app/lib/url-parser";
 import { getSegmentColorHex, sortSegments } from "@/app/lib/segment-colors";
 import { colorizeUrl } from "@/app/lib/colorize-url";
 import { UrlSegment } from "@/app/lib/types";
@@ -11,7 +12,8 @@ export async function GET(
   { params }: { params: Promise<{ data: string }> }
 ) {
   const { data } = await params;
-  const breakdown = decodeBreakdown(decodeURIComponent(data));
+  const url = decodeUrl(decodeURIComponent(data));
+  const breakdown = url ? { originalUrl: url, segments: parseUrl(url) } : null;
 
   if (!breakdown) {
     return new ImageResponse(

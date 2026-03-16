@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { UrlSegment, UrlBreakdown } from "../lib/types";
 import { parseUrl } from "../lib/url-parser";
-import { encodeBreakdown } from "../lib/encoding";
+import { encodeUrl } from "../lib/encoding";
 import { getSegmentColor, sortSegments } from "../lib/segment-colors";
 import { db, flattenDirs, type DirRow } from "../lib/db";
 
@@ -121,7 +121,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   };
 
   const handleShare = () => {
-    const encoded = encodeBreakdown({ originalUrl: withProtocol(rawUrl), segments });
+    const encoded = encodeUrl(withProtocol(rawUrl));
     setShareUrl(`${window.location.origin}/s/${encoded}`);
     setCopied(false);
   };
