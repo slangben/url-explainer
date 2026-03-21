@@ -14,6 +14,7 @@ export default function CopyButton({ text, label }: { text: string; label?: stri
   if (label) {
     return (
       <button
+        data-goatcounter-click="Shared URL copied"
         onClick={handleCopy}
         className="inline-block rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
       >
@@ -24,6 +25,7 @@ export default function CopyButton({ text, label }: { text: string; label?: stri
 
   return (
     <button
+      data-goatcounter-click="Shared URL copied as Markdown"
       onClick={handleCopy}
       title={copied ? "Copied!" : "Copy"}
       className="rounded p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-200 dark:hover:text-zinc-300 dark:hover:bg-zinc-800 transition-colors"

@@ -275,6 +275,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
             </div>
 
             <button
+              data-goatcounter-click="Share URL clicked"
               onClick={handleShare}
               className="rounded-lg border border-zinc-200 px-5 py-2 text-sm font-medium transition-colors hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
             >
@@ -282,6 +283,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
             </button>
 
             <button
+              data-goatcounter-click="Save URL clicked"
               onClick={openSaveDialog}
               className="rounded-lg bg-zinc-900 px-5 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
             >
@@ -300,6 +302,7 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
                   className="flex-1 rounded border border-zinc-200 bg-white px-3 py-2 text-xs font-mono outline-none dark:border-zinc-700 dark:bg-zinc-800"
                 />
                 <button
+                  data-goatcounter-click="Share URL copied"
                   onClick={handleCopy}
                   className="shrink-0 rounded-lg border border-zinc-200 px-4 py-2 text-xs font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
@@ -336,12 +339,14 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
               </select>
               <div className="flex gap-2">
                 <button
+                  data-goatcounter-click="Save URL saved"
                   onClick={handleSave}
                   className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
                 >
                   Save
                 </button>
                 <button
+                  data-goatcounter-click="Save URL cancelled"
                   onClick={() => setShowSave(false)}
                   className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                 >
