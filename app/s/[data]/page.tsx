@@ -18,7 +18,7 @@ function decodeBreakdown(data: string) {
   try {
     const parsed = JSON.parse(decoded);
     if (parsed.v === 2 && parsed.url && Array.isArray(parsed.segments)) {
-      return { originalUrl: parsed.url, segments: parsed.segments };
+      return { originalUrl: parsed.url as string, segments: parsed.segments as UrlSegment[] };
     }
   } catch {
     // fall through to legacy format
