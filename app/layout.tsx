@@ -54,6 +54,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script async src="//gc.zgo.at/count.js" data-goatcounter="https://slangben.goatcounter.com/count" />
         <script dangerouslySetInnerHTML={{ __html: `
           (function() {
             var stored = localStorage.getItem('theme');
