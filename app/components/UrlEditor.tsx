@@ -121,7 +121,8 @@ export default function UrlEditor({ loadedBreakdown }: UrlEditorProps) {
   };
 
   const handleShare = () => {
-    const encoded = encodeUrl(withProtocol(rawUrl));
+    const payload = JSON.stringify({ v: 2, url: withProtocol(rawUrl), segments });
+    const encoded = encodeUrl(payload);
     setShareUrl(`${window.location.origin}/s/${encoded}`);
     setCopied(false);
   };

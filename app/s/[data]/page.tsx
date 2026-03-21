@@ -11,9 +11,21 @@ type Props = {
 };
 
 function decodeBreakdown(data: string) {
-  const url = decodeUrl(decodeURIComponent(data));
-  if (!url) return null;
-  return { originalUrl: url, segments: parseUrl(url) };
+  const decoded = decodeUrl(decodeURIComponent(data));
+  if (!decoded) return null;
+
+  // New format (v2): JSON with segments preserving descriptions
+  try {
+    const parsed = JSON.parse(decoded);
+    if (parsed.v === 2 && parsed.url && Array.isArray(parsed.segments)) {
+      return { originalUrl: parsed.url, segments: parsed.segments };
+    }
+  } catch {
+    // fall through to legacy format
+  }
+
+  // Legacy format: plain URL
+  return { originalUrl: decoded, segments: parseUrl(decoded) };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
